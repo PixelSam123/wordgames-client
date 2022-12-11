@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 eframe = "0.20"
-ewebsock = "0.2"
+tungstenite = "0.18"
