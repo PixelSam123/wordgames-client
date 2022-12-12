@@ -84,6 +84,13 @@ struct WordgamesClient {
 }
 
 impl WordgamesClient {
+    fn ws_result_received(&mut self, result: Result<String, String>) {
+        match result {
+            Ok(message) => self.messages.push(message),
+            Err(err) => self.err_text = Some(err),
+        }
+    }
+
     fn connect_button_clicked(&mut self, ctx: &egui::Context) {
         match connect(ctx.clone()) {
             Ok((ws_sender, ws_receiver)) => {
@@ -110,10 +117,7 @@ impl eframe::App for WordgamesClient {
         // fetch message and errors from reader thread
         if let Some(ws_receiver) = &self.ws_receiver {
             if let Ok(result) = ws_receiver.try_recv() {
-                match result {
-                    Ok(message) => self.messages.push(message),
-                    Err(err) => self.err_text = Some(err),
-                }
+                self.ws_result_received(result);
             }
         }
 
