@@ -41,7 +41,9 @@ fn main() {
     );
 }
 
-fn connect(ctx: egui::Context) -> Result<(Sender<String>, Receiver<String>), String> {
+fn connect(
+    ctx: egui::Context,
+) -> Result<(Sender<String>, Receiver<String>, Receiver<String>), String> {
     let (mut socket, _) =
         tungstenite::connect("ws://localhost:8080/ws/monka").map_err(|err| err.to_string())?;
 
@@ -53,27 +55,38 @@ fn connect(ctx: egui::Context) -> Result<(Sender<String>, Receiver<String>), Str
 
     let (receive_tx, receive_rx) = mpsc::channel();
     let (send_tx, send_rx) = mpsc::channel();
+    let (err_tx, err_rx) = mpsc::channel();
 
     thread::spawn(move || loop {
-        if let Ok(msg) = send_rx.try_recv() {
-            socket
-                .write_message(tungstenite::Message::Text(msg))
-                .unwrap();
-        }
+        if let Err(err) = (|| {
+            if let Ok(msg) = send_rx.try_recv() {
+                socket
+                    .write_message(tungstenite::Message::Text(msg))
+                    .map_err(|err| err.to_string())?;
+            }
 
-        if let Ok(msg) = socket.read_message() {
-            receive_tx.send(msg.to_string()).unwrap();
+            if let Ok(msg) = socket.read_message() {
+                receive_tx
+                    .send(msg.to_string())
+                    .map_err(|err| err.to_string())?;
+                ctx.request_repaint();
+            }
+
+            Ok(())
+        })() {
+            err_tx.send(err).unwrap();
             ctx.request_repaint();
         }
         // approx. 60FPS loop
         thread::sleep(Duration::from_secs_f64(1.0 / 60.0));
     });
 
-    Ok((send_tx, receive_rx))
+    Ok((send_tx, receive_rx, err_rx))
 }
 
 #[derive(Default)]
 struct WordgamesClient {
+    err_rx: Option<Receiver<String>>,
     err_text: Option<String>,
     messages: Vec<String>,
     receive_rx: Option<Receiver<String>>,
@@ -84,9 +97,10 @@ struct WordgamesClient {
 impl WordgamesClient {
     fn connect_button_clicked(&mut self, ctx: &egui::Context) {
         match connect(ctx.clone()) {
-            Ok((send_tx, receive_rx)) => {
+            Ok((send_tx, receive_rx, err_rx)) => {
                 self.send_tx = Some(send_tx);
                 self.receive_rx = Some(receive_rx);
+                self.err_rx = Some(err_rx);
             }
             Err(err) => self.err_text = Some(err),
         }
@@ -105,7 +119,13 @@ impl WordgamesClient {
 
 impl eframe::App for WordgamesClient {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        // fetch message from reader thread
+        // fetch message and errors from reader thread
+        if let Some(err_rx) = &self.err_rx {
+            if let Ok(err) = err_rx.try_recv() {
+                self.err_text = Some(err);
+            }
+        }
+
         if let Some(message_rx) = &self.receive_rx {
             if let Ok(message) = message_rx.try_recv() {
                 self.messages.push(message);
