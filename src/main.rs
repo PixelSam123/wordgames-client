@@ -1,14 +1,11 @@
 use std::{
-    net::TcpStream,
-    sync::{
-        mpsc::{self, Receiver},
-        Arc, Mutex,
-    },
+    sync::mpsc::{self, Receiver, Sender},
     thread,
+    time::Duration,
 };
 
 use eframe::{egui, epaint::Color32};
-use tungstenite::{stream::MaybeTlsStream, WebSocket};
+use tungstenite::stream::MaybeTlsStream;
 
 const APP_ZOOM: f32 = 1.071_428_5 * 1.25;
 
@@ -44,60 +41,60 @@ fn main() {
     );
 }
 
-fn connect(
-    ctx: egui::Context,
-) -> Result<
-    (
-        Arc<Mutex<WebSocket<MaybeTlsStream<TcpStream>>>>,
-        Receiver<String>,
-    ),
-    String,
-> {
-    let (socket, _) =
+fn connect(ctx: egui::Context) -> Result<(Sender<String>, Receiver<String>), String> {
+    let (mut socket, _) =
         tungstenite::connect("ws://localhost:8080/ws/monka").map_err(|err| err.to_string())?;
-    let socket = Arc::new(Mutex::new(socket));
 
-    let (message_tx, message_rx) = mpsc::channel();
+    if let MaybeTlsStream::Plain(stream) = socket.get_ref() {
+        stream
+            .set_nonblocking(true)
+            .map_err(|err| err.to_string())?;
+    }
 
-    let reader_socket = socket.clone();
+    let (receive_tx, receive_rx) = mpsc::channel();
+    let (send_tx, send_rx) = mpsc::channel();
+
     thread::spawn(move || loop {
-        let msg = reader_socket.lock().unwrap().read_message().unwrap();
-        message_tx.send(msg.to_string()).unwrap();
+        if let Ok(msg) = send_rx.try_recv() {
+            socket
+                .write_message(tungstenite::Message::Text(msg))
+                .unwrap();
+        }
 
-        ctx.request_repaint();
+        if let Ok(msg) = socket.read_message() {
+            receive_tx.send(msg.to_string()).unwrap();
+            ctx.request_repaint();
+        }
+        // approx. 60FPS loop
+        thread::sleep(Duration::from_secs_f64(1.0 / 60.0));
     });
 
-    Ok((socket, message_rx))
+    Ok((send_tx, receive_rx))
 }
 
 #[derive(Default)]
 struct WordgamesClient {
-    ws: Option<Arc<Mutex<WebSocket<MaybeTlsStream<TcpStream>>>>>,
     err_text: Option<String>,
     messages: Vec<String>,
-    message_rx: Option<mpsc::Receiver<String>>,
+    receive_rx: Option<Receiver<String>>,
+    send_tx: Option<Sender<String>>,
     message_to_send: String,
 }
 
 impl WordgamesClient {
     fn connect_button_clicked(&mut self, ctx: &egui::Context) {
         match connect(ctx.clone()) {
-            Ok((ws, message_rx)) => {
-                self.ws = Some(ws);
-                self.message_rx = Some(message_rx);
+            Ok((send_tx, receive_rx)) => {
+                self.send_tx = Some(send_tx);
+                self.receive_rx = Some(receive_rx);
             }
             Err(err) => self.err_text = Some(err),
         }
     }
 
     fn message_field_submitted(&mut self) {
-        if let Some(ws) = &self.ws {
-            // Deadlock here
-            if let Err(err) = ws
-                .lock()
-                .unwrap()
-                .write_message(tungstenite::Message::Text(self.message_to_send.clone()))
-            {
+        if let Some(send_tx) = &self.send_tx {
+            if let Err(err) = send_tx.send(self.message_to_send.clone()) {
                 self.err_text = Some(err.to_string());
             }
         }
@@ -109,7 +106,7 @@ impl WordgamesClient {
 impl eframe::App for WordgamesClient {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // fetch message from reader thread
-        if let Some(message_rx) = &self.message_rx {
+        if let Some(message_rx) = &self.receive_rx {
             if let Ok(message) = message_rx.try_recv() {
                 self.messages.push(message);
             }
@@ -119,7 +116,7 @@ impl eframe::App for WordgamesClient {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.label(format!("{:?}", self.err_text));
 
-            ui.add_enabled_ui(self.ws.is_none(), |ui| {
+            ui.add_enabled_ui(self.receive_rx.is_none(), |ui| {
                 if ui.button("Connect to server").clicked() {
                     self.connect_button_clicked(ctx);
                 }
