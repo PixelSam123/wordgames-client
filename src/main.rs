@@ -39,9 +39,9 @@ fn main() {
     );
 }
 
-fn connect(
-    ctx: egui::Context,
-) -> Result<(Sender<String>, Receiver<Result<String, String>>), String> {
+type ChannelWebsocket = (Sender<String>, Receiver<Result<String, String>>);
+
+fn connect(ctx: egui::Context) -> Result<ChannelWebsocket, String> {
     let (mut socket, _) =
         tungstenite::connect("ws://localhost:8080/ws/monka").map_err(|err| err.to_string())?;
 
@@ -78,8 +78,7 @@ fn connect(
 struct WordgamesClient {
     err_text: Option<String>,
     messages: Vec<String>,
-    ws_sender: Option<Sender<String>>,
-    ws_receiver: Option<Receiver<Result<String, String>>>,
+    websocket: Option<ChannelWebsocket>,
     message_to_send: String,
 }
 
@@ -93,17 +92,14 @@ impl WordgamesClient {
 
     fn connect_button_clicked(&mut self, ctx: &egui::Context) {
         match connect(ctx.clone()) {
-            Ok((ws_sender, ws_receiver)) => {
-                self.ws_sender = Some(ws_sender);
-                self.ws_receiver = Some(ws_receiver);
-            }
+            Ok(websocket) => self.websocket = Some(websocket),
             Err(err) => self.err_text = Some(err),
         }
     }
 
     fn message_field_submitted(&mut self) {
-        if let Some(ws_sender) = &self.ws_sender {
-            if let Err(err) = ws_sender.send(self.message_to_send.clone()) {
+        if let Some((sender, _)) = &self.websocket {
+            if let Err(err) = sender.send(self.message_to_send.clone()) {
                 self.err_text = Some(err.to_string());
             }
         }
@@ -115,8 +111,8 @@ impl WordgamesClient {
 impl eframe::App for WordgamesClient {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // fetch message and errors from reader thread
-        if let Some(ws_receiver) = &self.ws_receiver {
-            if let Ok(result) = ws_receiver.try_recv() {
+        if let Some((_, receiver)) = &self.websocket {
+            if let Ok(result) = receiver.try_recv() {
                 self.ws_result_received(result);
             }
         }
@@ -125,7 +121,7 @@ impl eframe::App for WordgamesClient {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.label(format!("{:?}", self.err_text));
 
-            ui.add_enabled_ui(self.ws_receiver.is_none(), |ui| {
+            ui.add_enabled_ui(self.websocket.is_none(), |ui| {
                 if ui.button("Connect to server").clicked() {
                     self.connect_button_clicked(ctx);
                 }
