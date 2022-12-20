@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     sync::mpsc::{self, Receiver, Sender},
     thread,
     time::Duration,
@@ -76,7 +77,7 @@ fn connect(ctx: egui::Context) -> Result<ChannelWebsocket, String> {
 
 #[derive(Default)]
 struct WordgamesClient {
-    err_text: Option<String>,
+    err_texts: HashSet<String>,
     messages: Vec<String>,
     websocket: Option<ChannelWebsocket>,
     message_to_send: String,
@@ -86,30 +87,38 @@ impl WordgamesClient {
     fn ws_result_received(&mut self, result: Result<String, String>) {
         match result {
             Ok(message) => self.messages.push(message),
-            Err(err) => self.err_text = Some(err),
+            Err(err) => {
+                self.err_texts.insert(err);
+            }
         }
     }
 
     fn connect_button_clicked(&mut self, ctx: &egui::Context) {
         match connect(ctx.clone()) {
             Ok(websocket) => self.websocket = Some(websocket),
-            Err(err) => self.err_text = Some(err),
+            Err(err) => {
+                self.err_texts.insert(err);
+            }
         }
     }
 
     fn message_field_submitted(&mut self) {
         if let Some((sender, _)) = &self.websocket {
             if let Err(err) = sender.send(self.message_to_send.clone()) {
-                self.err_text = Some(err.to_string());
+                self.err_texts.insert(err.to_string());
             }
         }
 
         self.message_to_send = String::new();
     }
+
+    fn close_err_button_clicked(&mut self, err_text: &str) {
+        self.err_texts.remove(err_text);
+    }
 }
 
 impl eframe::App for WordgamesClient {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         // fetch message and errors from reader thread
         if let Some((_, receiver)) = &self.websocket {
             if let Ok(result) = receiver.try_recv() {
@@ -119,7 +128,17 @@ impl eframe::App for WordgamesClient {
 
         // UI
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.label(format!("{:?}", self.err_text));
+            for err_text in self.err_texts.clone() {
+                egui::Window::new("Error")
+                    .collapsible(false)
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        ui.label(&err_text);
+                        if ui.button("Close").clicked() {
+                            self.close_err_button_clicked(&err_text);
+                        }
+                    });
+            }
 
             ui.add_enabled_ui(self.websocket.is_none(), |ui| {
                 if ui.button("Connect to server").clicked() {
@@ -136,9 +155,9 @@ impl eframe::App for WordgamesClient {
             }
 
             ui.heading("Messages: ");
-            self.messages.iter().for_each(|message| {
+            for message in &self.messages {
                 ui.label(message);
-            });
+            }
         });
     }
 }
