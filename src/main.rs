@@ -35,16 +35,16 @@ fn main() {
 
             creation_ctx.egui_ctx.set_visuals(app_visuals);
 
-            Box::new(WordgamesClient::default())
+            Box::<WordgamesClient>::default()
         }),
     );
 }
 
 type ChannelWebsocket = (Sender<String>, Receiver<Result<String, String>>);
 
-fn connect(ctx: egui::Context) -> Result<ChannelWebsocket, String> {
+fn connect(url: &str, ctx: egui::Context) -> Result<ChannelWebsocket, String> {
     let (mut socket, _) =
-        tungstenite::connect("ws://localhost:8080/ws/monka").map_err(|err| err.to_string())?;
+        tungstenite::connect(format!("ws://{url}")).map_err(|err| err.to_string())?;
 
     if let MaybeTlsStream::Plain(stream) = socket.get_ref() {
         stream
@@ -77,6 +77,7 @@ fn connect(ctx: egui::Context) -> Result<ChannelWebsocket, String> {
 
 #[derive(Default)]
 struct WordgamesClient {
+    server_url: String,
     err_texts: HashSet<String>,
     messages: Vec<String>,
     websocket: Option<ChannelWebsocket>,
@@ -94,7 +95,7 @@ impl WordgamesClient {
     }
 
     fn connect_button_clicked(&mut self, ctx: &egui::Context) {
-        match connect(ctx.clone()) {
+        match connect(&self.server_url, ctx.clone()) {
             Ok(websocket) => self.websocket = Some(websocket),
             Err(err) => {
                 self.err_texts.insert(err);
@@ -102,14 +103,17 @@ impl WordgamesClient {
         }
     }
 
-    fn message_field_submitted(&mut self) {
+    fn message_field_submitted(&mut self, message_field: &egui::Response) {
         if let Some((sender, _)) = &self.websocket {
-            if let Err(err) = sender.send(self.message_to_send.clone()) {
-                self.err_texts.insert(err.to_string());
+            if !self.message_to_send.is_empty() {
+                if let Err(err) = sender.send(self.message_to_send.clone()) {
+                    self.err_texts.insert(err.to_string());
+                }
             }
         }
 
         self.message_to_send = String::new();
+        message_field.request_focus();
     }
 
     fn close_err_button_clicked(&mut self, err_text: &str) {
@@ -141,23 +145,27 @@ impl eframe::App for WordgamesClient {
             }
 
             ui.add_enabled_ui(self.websocket.is_none(), |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Server URL:");
+                    ui.text_edit_singleline(&mut self.server_url);
+                });
+
                 if ui.button("Connect to server").clicked() {
                     self.connect_button_clicked(ctx);
                 }
             });
 
-            if ui
-                .text_edit_singleline(&mut self.message_to_send)
-                .lost_focus()
-                && ui.input().key_pressed(egui::Key::Enter)
-            {
-                self.message_field_submitted();
+            let message_field = ui.text_edit_singleline(&mut self.message_to_send);
+            if message_field.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                self.message_field_submitted(&message_field);
             }
 
             ui.heading("Messages: ");
-            for message in &self.messages {
-                ui.label(message);
-            }
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                for message in &self.messages {
+                    ui.label(message);
+                }
+            });
         });
     }
 }
