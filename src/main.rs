@@ -5,7 +5,10 @@ use std::{
     time::Duration,
 };
 
-use eframe::{egui, epaint::Color32};
+use eframe::{
+    egui,
+    epaint::{Color32, Vec2},
+};
 use tungstenite::stream::MaybeTlsStream;
 
 const APP_ZOOM: f32 = 1.071_428_5;
@@ -13,7 +16,10 @@ const APP_ZOOM: f32 = 1.071_428_5;
 fn main() {
     eframe::run_native(
         "Wordgames Client",
-        eframe::NativeOptions::default(),
+        eframe::NativeOptions {
+            initial_window_size: Some(Vec2::new(500.0, 600.0)),
+            ..Default::default()
+        },
         Box::new(|creation_ctx| {
             let os_zoom_level = creation_ctx
                 .integration_info
@@ -147,25 +153,43 @@ impl eframe::App for WordgamesClient {
             ui.add_enabled_ui(self.websocket.is_none(), |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Server URL:");
-                    ui.text_edit_singleline(&mut self.server_url);
+                    ui.centered_and_justified(|ui| {
+                        ui.text_edit_singleline(&mut self.server_url);
+                    });
                 });
-
-                if ui.button("Connect to server").clicked() {
-                    self.connect_button_clicked(ctx);
-                }
+                ui.vertical_centered_justified(|ui| {
+                    if ui.button("Connect").clicked() {
+                        self.connect_button_clicked(ctx);
+                    }
+                });
             });
-
-            let message_field = ui.text_edit_singleline(&mut self.message_to_send);
-            if message_field.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
-                self.message_field_submitted(&message_field);
-            }
 
             ui.heading("Messages: ");
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                for message in &self.messages {
-                    ui.label(message);
-                }
-            });
+            egui::ScrollArea::vertical()
+                .stick_to_bottom(true)
+                .auto_shrink([false, true])
+                .max_width(f32::INFINITY)
+                .max_height(ui.available_height() - 16.0)
+                .show(ui, |ui| {
+                    for message in &self.messages {
+                        ui.label(message);
+                    }
+                });
         });
+
+        egui::TopBottomPanel::bottom("bottom_panel")
+            .show_separator_line(false)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Message:");
+
+                    ui.centered_and_justified(|ui| {
+                        let message_field = ui.text_edit_singleline(&mut self.message_to_send);
+                        if message_field.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                            self.message_field_submitted(&message_field);
+                        }
+                    });
+                });
+            });
     }
 }
