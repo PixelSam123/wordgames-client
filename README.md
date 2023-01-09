@@ -1,3 +1,3 @@
 # wordgames-client
 
-Native/WASM client for wordgames, a high performance word games server for WebSockets
+Native client for wordgames, a word games server for WebSockets
