@@ -9,6 +9,8 @@ use eframe::{
     egui,
     epaint::{Color32, Vec2},
 };
+use serde::Deserialize;
+use time::{format_description::well_known::Iso8601, OffsetDateTime};
 use tungstenite::stream::MaybeTlsStream;
 
 const APP_ZOOM: f32 = 1.071_428_5;
@@ -81,19 +83,76 @@ fn connect(url: &str, ctx: egui::Context) -> Result<ChannelWebsocket, String> {
     Ok((from_main_thread_tx, to_main_thread_rx))
 }
 
+#[derive(Deserialize)]
+#[serde(tag = "type", content = "content")]
+enum ServerMessage {
+    ChatMessage(String),
+    FinishedGame,
+    FinishedRoundInfo {
+        word_answer: String,
+        to_next_round_time: String,
+    },
+    OngoingRoundInfo {
+        word_to_guess: String,
+        round_finish_time: String,
+    },
+}
+
 #[derive(Default)]
 struct WordgamesClient {
-    server_url: String,
     err_texts: HashSet<String>,
     messages: Vec<String>,
-    websocket: Option<ChannelWebsocket>,
     message_to_send: String,
+    server_url: String,
+    status_text: String,
+    timer_text: String,
+    websocket: Option<ChannelWebsocket>,
+    word_box: String,
 }
 
 impl WordgamesClient {
     fn ws_result_received(&mut self, result: Result<String, String>) {
         match result {
-            Ok(message) => self.messages.push(message),
+            Ok(message) => match serde_json::from_str::<ServerMessage>(&message).unwrap() {
+                ServerMessage::ChatMessage(message) => {
+                    self.messages.push(message);
+                }
+                ServerMessage::FinishedGame => {
+                    self.timer_text = String::new();
+                    self.status_text = "Waiting Round Start!".to_owned();
+                    self.word_box = String::new();
+                }
+                ServerMessage::FinishedRoundInfo {
+                    word_answer,
+                    to_next_round_time,
+                } => {
+                    let next_round_time =
+                        OffsetDateTime::parse(&to_next_round_time, &Iso8601::DEFAULT).unwrap();
+                    self.timer_text = format!(
+                        "next round starts in {} seconds",
+                        (next_round_time - OffsetDateTime::now_utc())
+                            .as_seconds_f32()
+                            .round() as i32
+                    );
+                    self.status_text = "Time's up! The answer is:".to_owned();
+                    self.word_box = word_answer;
+                }
+                ServerMessage::OngoingRoundInfo {
+                    word_to_guess,
+                    round_finish_time,
+                } => {
+                    let finish_time =
+                        OffsetDateTime::parse(&round_finish_time, &Iso8601::DEFAULT).unwrap();
+                    self.timer_text = format!(
+                        "time is {} seconds",
+                        (finish_time - OffsetDateTime::now_utc())
+                            .as_seconds_f32()
+                            .round() as i32
+                    );
+                    self.status_text = "Please guess:".to_owned();
+                    self.word_box = word_to_guess;
+                }
+            },
             Err(err) => {
                 self.err_texts.insert(err);
             }
@@ -107,6 +166,10 @@ impl WordgamesClient {
                 self.err_texts.insert(err);
             }
         }
+    }
+
+    fn disconnect_button_clicked(&mut self, ctx: &egui::Context) {
+        self.websocket = None;
     }
 
     fn message_field_submitted(&mut self, message_field: &egui::Response) {
@@ -163,6 +226,16 @@ impl eframe::App for WordgamesClient {
                     }
                 });
             });
+            ui.add_enabled_ui(self.websocket.is_some(), |ui| {
+                ui.vertical_centered_justified(|ui| {
+                    if ui.button("Disconnect").clicked() {
+                        self.disconnect_button_clicked(ctx);
+                    }
+                });
+            });
+
+            ui.label(&format!("{}, {}", self.status_text, self.timer_text));
+            ui.label(egui::RichText::new(&self.word_box).code().size(32.0));
 
             ui.heading("Messages: ");
             egui::ScrollArea::vertical()
