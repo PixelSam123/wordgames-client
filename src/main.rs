@@ -1,23 +1,26 @@
 use std::{
-    collections::HashSet,
     sync::mpsc::{self, Receiver, Sender},
     thread,
     time::Duration,
 };
 
 use eframe::{
-    egui,
+    egui::{
+        CentralPanel, Context, Key, Response, RichText, ScrollArea, Stroke, TopBottomPanel,
+        Visuals, Window,
+    },
     epaint::{Color32, Vec2},
 };
 use serde::Deserialize;
 use time::{format_description::well_known::Iso8601, OffsetDateTime};
 use tungstenite::stream::MaybeTlsStream;
 
+const APP_NAME: &str = "Wordgames Client";
 const APP_ZOOM: f32 = 1.071_428_5;
 
 fn main() {
     eframe::run_native(
-        "Wordgames Client",
+        APP_NAME,
         eframe::NativeOptions {
             initial_window_size: Some(Vec2::new(500.0, 600.0)),
             ..Default::default()
@@ -31,15 +34,14 @@ fn main() {
                 .egui_ctx
                 .set_pixels_per_point(os_zoom_level * APP_ZOOM);
 
-            let mut app_visuals = egui::Visuals::dark();
+            let mut app_visuals = Visuals::dark();
 
             app_visuals.widgets.noninteractive.fg_stroke =
-                egui::Stroke::new(1.0, Color32::from_gray(180));
-            app_visuals.widgets.inactive.fg_stroke =
-                egui::Stroke::new(1.0, Color32::from_gray(210));
-            app_visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, Color32::from_gray(240));
-            app_visuals.widgets.active.fg_stroke = egui::Stroke::new(1.0, Color32::from_gray(255));
-            app_visuals.widgets.open.fg_stroke = egui::Stroke::new(1.0, Color32::from_gray(210));
+                Stroke::new(1.0, Color32::from_gray(180));
+            app_visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Color32::from_gray(210));
+            app_visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::from_gray(240));
+            app_visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::from_gray(255));
+            app_visuals.widgets.open.fg_stroke = Stroke::new(1.0, Color32::from_gray(210));
 
             creation_ctx.egui_ctx.set_visuals(app_visuals);
 
@@ -50,9 +52,8 @@ fn main() {
 
 type ChannelWebsocket = (Sender<String>, Receiver<Result<String, String>>);
 
-fn connect(url: &str, ctx: egui::Context) -> Result<ChannelWebsocket, String> {
-    let (mut socket, _) =
-        tungstenite::connect(url).map_err(|err| err.to_string())?;
+fn connect(url: &str, ctx: Context) -> Result<ChannelWebsocket, String> {
+    let (mut socket, _) = tungstenite::connect(url).map_err(|err| err.to_string())?;
 
     if let MaybeTlsStream::Plain(stream) = socket.get_ref() {
         stream
@@ -100,7 +101,7 @@ enum ServerMessage {
 
 #[derive(Default)]
 struct WordgamesClient {
-    err_texts: HashSet<String>,
+    err_texts: Vec<String>,
     messages: Vec<String>,
     message_to_send: String,
     server_url: String,
@@ -154,29 +155,29 @@ impl WordgamesClient {
                 }
             },
             Err(err) => {
-                self.err_texts.insert(err);
+                self.err_texts.push(err);
             }
         }
     }
 
-    fn connect_button_clicked(&mut self, ctx: &egui::Context) {
+    fn connect_button_clicked(&mut self, ctx: &Context) {
         match connect(&self.server_url, ctx.clone()) {
             Ok(websocket) => self.websocket = Some(websocket),
             Err(err) => {
-                self.err_texts.insert(err);
+                self.err_texts.push(err);
             }
         }
     }
 
-    fn disconnect_button_clicked(&mut self, ctx: &egui::Context) {
+    fn disconnect_button_clicked(&mut self) {
         self.websocket = None;
     }
 
-    fn message_field_submitted(&mut self, message_field: &egui::Response) {
+    fn message_field_submitted(&mut self, message_field: &Response) {
         if let Some((sender, _)) = &self.websocket {
             if !self.message_to_send.is_empty() {
                 if let Err(err) = sender.send(self.message_to_send.clone()) {
-                    self.err_texts.insert(err.to_string());
+                    self.err_texts.push(err.to_string());
                 }
             }
         }
@@ -185,13 +186,13 @@ impl WordgamesClient {
         message_field.request_focus();
     }
 
-    fn close_err_button_clicked(&mut self, err_text: &str) {
-        self.err_texts.remove(err_text);
+    fn close_err_button_clicked(&mut self, idx: usize) {
+        self.err_texts.remove(idx);
     }
 }
 
 impl eframe::App for WordgamesClient {
-    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, _: &mut eframe::Frame) {
         // fetch message and errors from reader thread
         if let Some((_, receiver)) = &self.websocket {
             if let Ok(result) = receiver.try_recv() {
@@ -200,19 +201,19 @@ impl eframe::App for WordgamesClient {
         }
 
         // UI
-        egui::CentralPanel::default().show(ctx, |ui| {
-            for err_text in self.err_texts.clone() {
-                egui::Window::new("Error")
-                    .collapsible(false)
-                    .resizable(false)
-                    .show(ctx, |ui| {
-                        ui.label(&err_text);
-                        if ui.button("Close").clicked() {
-                            self.close_err_button_clicked(&err_text);
-                        }
-                    });
-            }
+        for (idx, err_text) in self.err_texts.clone().iter().enumerate() {
+            Window::new(format!("Error {}", idx + 1))
+                .collapsible(false)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.label(err_text);
+                    if ui.button("Close").clicked() {
+                        self.close_err_button_clicked(idx);
+                    }
+                });
+        }
 
+        CentralPanel::default().show(ctx, |ui| {
             ui.add_enabled_ui(self.websocket.is_none(), |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Server URL:");
@@ -229,16 +230,16 @@ impl eframe::App for WordgamesClient {
             ui.add_enabled_ui(self.websocket.is_some(), |ui| {
                 ui.vertical_centered_justified(|ui| {
                     if ui.button("Disconnect").clicked() {
-                        self.disconnect_button_clicked(ctx);
+                        self.disconnect_button_clicked();
                     }
                 });
             });
 
             ui.label(&format!("{}, {}", self.status_text, self.timer_text));
-            ui.label(egui::RichText::new(&self.word_box).code().size(32.0));
+            ui.label(RichText::new(&self.word_box).code().size(32.0));
 
             ui.heading("Messages: ");
-            egui::ScrollArea::vertical()
+            ScrollArea::vertical()
                 .stick_to_bottom(true)
                 .auto_shrink([false, true])
                 .max_width(f32::INFINITY)
@@ -250,7 +251,7 @@ impl eframe::App for WordgamesClient {
                 });
         });
 
-        egui::TopBottomPanel::bottom("bottom_panel")
+        TopBottomPanel::bottom("bottom_panel")
             .show_separator_line(false)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
@@ -258,7 +259,7 @@ impl eframe::App for WordgamesClient {
 
                     ui.centered_and_justified(|ui| {
                         let message_field = ui.text_edit_singleline(&mut self.message_to_send);
-                        if message_field.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                        if message_field.lost_focus() && ui.input().key_pressed(Key::Enter) {
                             self.message_field_submitted(&message_field);
                         }
                     });
