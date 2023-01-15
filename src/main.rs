@@ -52,7 +52,7 @@ type ChannelWebsocket = (Sender<String>, Receiver<Result<String, String>>);
 
 fn connect(url: &str, ctx: egui::Context) -> Result<ChannelWebsocket, String> {
     let (mut socket, _) =
-        tungstenite::connect(format!("ws://{url}")).map_err(|err| err.to_string())?;
+        tungstenite::connect(url).map_err(|err| err.to_string())?;
 
     if let MaybeTlsStream::Plain(stream) = socket.get_ref() {
         stream
