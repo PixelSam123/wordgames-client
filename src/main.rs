@@ -29,8 +29,8 @@ fn main() {
         Box::new(|creation_ctx| {
             let mut app_style = creation_ctx.egui_ctx.style().as_ref().clone();
 
-            app_style.spacing.item_spacing = Vec2::new(8.0, 4.0);
-            app_style.spacing.button_padding = Vec2::new(4.0, 2.0);
+            app_style.spacing.item_spacing = Vec2::new(12.0, 6.0);
+            app_style.spacing.button_padding = Vec2::new(6.0, 3.0);
 
             app_style.text_styles.insert(TextStyle::Small, FontId::proportional(10.0));
             app_style.text_styles.insert(TextStyle::Body, FontId::proportional(13.0));
@@ -38,6 +38,7 @@ fn main() {
             app_style.text_styles.insert(TextStyle::Button, FontId::proportional(13.0));
             app_style.text_styles.insert(TextStyle::Heading, FontId::proportional(19.0));
 
+            app_style.visuals.window_stroke = Stroke::new(1.5, Color32::from_gray(60));
             app_style.visuals.window_rounding = Rounding::none();
             app_style.visuals.window_shadow = Shadow::small_dark();
 
@@ -47,12 +48,22 @@ fn main() {
             app_style.visuals.widgets.active.rounding = Rounding::none();
             app_style.visuals.widgets.open.rounding = Rounding::none();
 
+            app_style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.5, Color32::from_gray(60));
+            app_style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.5, Color32::from_gray(150));
+            app_style.visuals.widgets.active.bg_stroke = Stroke::new(1.5, Color32::from_gray(255));
+            app_style.visuals.widgets.open.bg_stroke = Stroke::new(1.5, Color32::from_gray(60));
+
+            app_style.visuals.widgets.hovered.expansion = 0.75;
+            app_style.visuals.widgets.active.expansion = 0.75;
+
             app_style.visuals.widgets.noninteractive.fg_stroke =
-                Stroke::new(1.0, Color32::from_gray(190));
-            app_style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Color32::from_gray(220));
-            app_style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::from_gray(250));
-            app_style.visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::from_gray(255));
-            app_style.visuals.widgets.open.fg_stroke = Stroke::new(1.0, Color32::from_gray(220));
+                Stroke::new(1.5, Color32::from_gray(190));
+            app_style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.5, Color32::from_gray(220));
+            app_style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.5, Color32::from_gray(250));
+            app_style.visuals.widgets.active.fg_stroke = Stroke::new(1.5, Color32::from_gray(255));
+            app_style.visuals.widgets.open.fg_stroke = Stroke::new(1.5, Color32::from_gray(220));
+
+            app_style.visuals.selection.stroke = Stroke::new(1.5, Color32::from_rgb(192, 222, 255));
 
             creation_ctx.egui_ctx.set_style(app_style);
 
