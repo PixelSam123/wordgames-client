@@ -41,14 +41,14 @@ fn main() {
             app_style.text_styles.insert(TextStyle::Heading, FontId::proportional(19.0));
 
             app_style.visuals.window_stroke = Stroke::new(1.5, Color32::from_gray(60));
-            app_style.visuals.window_rounding = Rounding::none();
+            app_style.visuals.window_rounding = Rounding::same(6.0);
             app_style.visuals.window_shadow = Shadow::small_dark();
 
-            app_style.visuals.widgets.noninteractive.rounding = Rounding::none();
-            app_style.visuals.widgets.inactive.rounding = Rounding::none();
-            app_style.visuals.widgets.hovered.rounding = Rounding::none();
-            app_style.visuals.widgets.active.rounding = Rounding::none();
-            app_style.visuals.widgets.open.rounding = Rounding::none();
+            app_style.visuals.widgets.noninteractive.rounding = Rounding::same(3.0);
+            app_style.visuals.widgets.inactive.rounding = Rounding::same(3.0);
+            app_style.visuals.widgets.hovered.rounding = Rounding::same(3.0);
+            app_style.visuals.widgets.active.rounding = Rounding::same(3.0);
+            app_style.visuals.widgets.open.rounding = Rounding::same(3.0);
 
             app_style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.5, Color32::from_gray(60));
             app_style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.5, Color32::from_gray(150));
