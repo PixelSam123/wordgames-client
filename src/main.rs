@@ -224,8 +224,6 @@ impl eframe::App for WordgamesClient {
         }
 
         CentralPanel::default().show(ctx, |ui| {
-            ctx.style_ui(ui);
-
             ui.add_enabled_ui(self.websocket.is_none(), |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Server URL:");
