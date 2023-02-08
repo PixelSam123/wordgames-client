@@ -22,6 +22,7 @@ fn main() {
         APP_NAME,
         eframe::NativeOptions {
             initial_window_size: Some(Vec2::new(500.0, 600.0)),
+            min_window_size: Some(Vec2::new(300.0, 300.0)),
             renderer: eframe::Renderer::Wgpu,
             ..Default::default()
         },
