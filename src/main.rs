@@ -7,16 +7,15 @@ use std::{
 use eframe::{
     egui::{
         CentralPanel, Context, Key, Response, RichText, ScrollArea, Stroke, TopBottomPanel,
-        Visuals, Window,
+        Window, TextStyle,
     },
-    epaint::{Color32, Vec2},
+    epaint::{Color32, Vec2, Rounding, Shadow, FontId},
 };
 use serde::Deserialize;
 use time::{format_description::well_known::Iso8601, OffsetDateTime};
 use tungstenite::stream::MaybeTlsStream;
 
 const APP_NAME: &str = "Wordgames Client";
-const APP_ZOOM: f32 = 1.071_428_5;
 
 fn main() {
     eframe::run_native(
@@ -26,24 +25,31 @@ fn main() {
             ..Default::default()
         },
         Box::new(|creation_ctx| {
-            let os_zoom_level = creation_ctx
-                .integration_info
-                .native_pixels_per_point
-                .unwrap_or(1.0);
-            creation_ctx
-                .egui_ctx
-                .set_pixels_per_point(os_zoom_level * APP_ZOOM);
+            let mut app_style = creation_ctx.egui_ctx.style().as_ref().clone();
 
-            let mut app_visuals = Visuals::dark();
+            app_style.text_styles.insert(TextStyle::Small, FontId::proportional(10.0));
+            app_style.text_styles.insert(TextStyle::Body, FontId::proportional(13.0));
+            app_style.text_styles.insert(TextStyle::Monospace, FontId::monospace(13.0));
+            app_style.text_styles.insert(TextStyle::Button, FontId::proportional(13.0));
+            app_style.text_styles.insert(TextStyle::Heading, FontId::proportional(19.0));
 
-            app_visuals.widgets.noninteractive.fg_stroke =
-                Stroke::new(1.0, Color32::from_gray(180));
-            app_visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Color32::from_gray(210));
-            app_visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::from_gray(240));
-            app_visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::from_gray(255));
-            app_visuals.widgets.open.fg_stroke = Stroke::new(1.0, Color32::from_gray(210));
+            app_style.visuals.window_rounding = Rounding::none();
+            app_style.visuals.window_shadow = Shadow::small_dark();
 
-            creation_ctx.egui_ctx.set_visuals(app_visuals);
+            app_style.visuals.widgets.noninteractive.rounding = Rounding::none();
+            app_style.visuals.widgets.inactive.rounding = Rounding::none();
+            app_style.visuals.widgets.hovered.rounding = Rounding::none();
+            app_style.visuals.widgets.active.rounding = Rounding::none();
+            app_style.visuals.widgets.open.rounding = Rounding::none();
+
+            app_style.visuals.widgets.noninteractive.fg_stroke =
+                Stroke::new(1.0, Color32::from_gray(200));
+            app_style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Color32::from_gray(220));
+            app_style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::from_gray(255));
+            app_style.visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::from_gray(255));
+            app_style.visuals.widgets.open.fg_stroke = Stroke::new(1.0, Color32::from_gray(220));
+
+            creation_ctx.egui_ctx.set_style(app_style);
 
             Box::<WordgamesClient>::default()
         }),
