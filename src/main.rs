@@ -7,7 +7,7 @@ use std::{
 use eframe::{
     egui::{
         CentralPanel, Context, Key, Response, RichText, ScrollArea, Stroke, TopBottomPanel,
-        Window, TextStyle,
+        Window, TextStyle, style::Margin,
     },
     epaint::{Color32, Vec2, Rounding, Shadow, FontId},
 };
@@ -31,6 +31,8 @@ fn main() {
 
             app_style.spacing.item_spacing = Vec2::new(12.0, 6.0);
             app_style.spacing.button_padding = Vec2::new(6.0, 3.0);
+            app_style.spacing.window_margin = Margin::same(12.0);
+            app_style.spacing.menu_margin = Margin::same(12.0);
 
             app_style.text_styles.insert(TextStyle::Small, FontId::proportional(10.0));
             app_style.text_styles.insert(TextStyle::Body, FontId::proportional(13.0));
