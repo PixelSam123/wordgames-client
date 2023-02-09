@@ -6,10 +6,10 @@ use std::{
 
 use eframe::{
     egui::{
-        CentralPanel, Context, Key, Response, RichText, ScrollArea, Stroke, TopBottomPanel,
-        Window, TextStyle, style::Margin,
+        style::Margin, CentralPanel, Context, Key, Response, RichText, ScrollArea, Stroke, Style,
+        TextStyle, TopBottomPanel, Window,
     },
-    epaint::{Color32, Vec2, Rounding, Shadow, FontId},
+    epaint::{Color32, FontId, Rounding, Shadow, Vec2},
 };
 use serde::Deserialize;
 use time::{format_description::well_known::Iso8601, OffsetDateTime};
@@ -27,18 +27,28 @@ fn main() {
             ..Default::default()
         },
         Box::new(|creation_ctx| {
-            let mut app_style = creation_ctx.egui_ctx.style().as_ref().clone();
+            let mut app_style = Style::default();
 
             app_style.spacing.item_spacing = Vec2::new(12.0, 6.0);
             app_style.spacing.button_padding = Vec2::new(6.0, 3.0);
             app_style.spacing.window_margin = Margin::same(12.0);
             app_style.spacing.menu_margin = Margin::same(12.0);
 
-            app_style.text_styles.insert(TextStyle::Small, FontId::proportional(10.0));
-            app_style.text_styles.insert(TextStyle::Body, FontId::proportional(13.0));
-            app_style.text_styles.insert(TextStyle::Monospace, FontId::monospace(13.0));
-            app_style.text_styles.insert(TextStyle::Button, FontId::proportional(13.0));
-            app_style.text_styles.insert(TextStyle::Heading, FontId::proportional(19.0));
+            app_style
+                .text_styles
+                .insert(TextStyle::Small, FontId::proportional(11.0));
+            app_style
+                .text_styles
+                .insert(TextStyle::Body, FontId::proportional(14.0));
+            app_style
+                .text_styles
+                .insert(TextStyle::Monospace, FontId::monospace(14.0));
+            app_style
+                .text_styles
+                .insert(TextStyle::Button, FontId::proportional(14.0));
+            app_style
+                .text_styles
+                .insert(TextStyle::Heading, FontId::proportional(20.0));
 
             app_style.visuals.window_stroke = Stroke::new(1.5, Color32::from_gray(60));
             app_style.visuals.window_rounding = Rounding::same(6.0);
@@ -50,7 +60,8 @@ fn main() {
             app_style.visuals.widgets.active.rounding = Rounding::same(3.0);
             app_style.visuals.widgets.open.rounding = Rounding::same(3.0);
 
-            app_style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.5, Color32::from_gray(60));
+            app_style.visuals.widgets.noninteractive.bg_stroke =
+                Stroke::new(1.5, Color32::from_gray(60));
             app_style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.5, Color32::from_gray(150));
             app_style.visuals.widgets.active.bg_stroke = Stroke::new(1.5, Color32::from_gray(255));
             app_style.visuals.widgets.open.bg_stroke = Stroke::new(1.5, Color32::from_gray(60));
@@ -60,7 +71,8 @@ fn main() {
 
             app_style.visuals.widgets.noninteractive.fg_stroke =
                 Stroke::new(1.5, Color32::from_gray(190));
-            app_style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.5, Color32::from_gray(220));
+            app_style.visuals.widgets.inactive.fg_stroke =
+                Stroke::new(1.5, Color32::from_gray(220));
             app_style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.5, Color32::from_gray(250));
             app_style.visuals.widgets.active.fg_stroke = Stroke::new(1.5, Color32::from_gray(255));
             app_style.visuals.widgets.open.fg_stroke = Stroke::new(1.5, Color32::from_gray(220));
