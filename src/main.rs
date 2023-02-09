@@ -150,7 +150,7 @@ struct WordgamesClient {
     message_to_send: String,
     server_url: String,
     status_text: String,
-    timer_text: String,
+    timer_finish_time: Option<OffsetDateTime>,
     websocket: Option<ChannelWebsocket>,
     word_box: String,
 }
@@ -163,7 +163,7 @@ impl WordgamesClient {
                     self.messages.push(message);
                 }
                 ServerMessage::FinishedGame => {
-                    self.timer_text = String::new();
+                    self.timer_finish_time = None;
                     self.status_text = "Waiting Round Start!".to_owned();
                     self.word_box = String::new();
                 }
@@ -171,13 +171,8 @@ impl WordgamesClient {
                     word_answer,
                     to_next_round_time,
                 } => {
-                    let next_round_time =
-                        OffsetDateTime::parse(&to_next_round_time, &Iso8601::DEFAULT).unwrap();
-                    self.timer_text = format!(
-                        "next round starts in {} seconds",
-                        (next_round_time - OffsetDateTime::now_utc())
-                            .as_seconds_f32()
-                            .round() as i32
+                    self.timer_finish_time = Some(
+                        OffsetDateTime::parse(&to_next_round_time, &Iso8601::DEFAULT).unwrap(),
                     );
                     self.status_text = "Time's up! The answer is:".to_owned();
                     self.word_box = word_answer;
@@ -186,14 +181,8 @@ impl WordgamesClient {
                     word_to_guess,
                     round_finish_time,
                 } => {
-                    let finish_time =
-                        OffsetDateTime::parse(&round_finish_time, &Iso8601::DEFAULT).unwrap();
-                    self.timer_text = format!(
-                        "time is {} seconds",
-                        (finish_time - OffsetDateTime::now_utc())
-                            .as_seconds_f32()
-                            .round() as i32
-                    );
+                    self.timer_finish_time =
+                        Some(OffsetDateTime::parse(&round_finish_time, &Iso8601::DEFAULT).unwrap());
                     self.status_text = "Please guess:".to_owned();
                     self.word_box = word_to_guess;
                 }
@@ -308,7 +297,14 @@ impl eframe::App for WordgamesClient {
                     });
                 });
 
-                ui.label(&format!("{}, {}", self.status_text, self.timer_text));
+                ui.label(&format!(
+                    "{} {}",
+                    self.status_text,
+                    self.timer_finish_time.map_or(String::new(), |time| format!(
+                        "{} seconds",
+                        (time - OffsetDateTime::now_utc()).as_seconds_f32().round()
+                    ))
+                ));
                 ui.label(RichText::new(&self.word_box).code().size(32.0));
 
                 ui.heading("Messages: ");
