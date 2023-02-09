@@ -1,3 +1,6 @@
+// hide terminal in --release build for Windows
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::{
     sync::mpsc::{self, Receiver, Sender},
     thread,
