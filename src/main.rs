@@ -6,8 +6,8 @@ use std::{
 
 use eframe::{
     egui::{
-        style::Margin, CentralPanel, Context, Key, Response, RichText, ScrollArea, Stroke, Style,
-        TextStyle, TopBottomPanel, Window,
+        style::Margin, CentralPanel, Context, Frame, Key, Response, RichText, ScrollArea, Stroke,
+        Style, TextStyle, TopBottomPanel, Window,
     },
     epaint::{Color32, FontId, Rounding, Shadow, Vec2},
 };
@@ -249,45 +249,11 @@ impl eframe::App for WordgamesClient {
                 });
         }
 
-        CentralPanel::default().show(ctx, |ui| {
-            ui.add_enabled_ui(self.websocket.is_none(), |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Server URL:");
-                    ui.centered_and_justified(|ui| {
-                        ui.text_edit_singleline(&mut self.server_url);
-                    });
-                });
-                ui.vertical_centered_justified(|ui| {
-                    if ui.button("Connect").clicked() {
-                        self.connect_button_clicked(ctx);
-                    }
-                });
-            });
-            ui.add_enabled_ui(self.websocket.is_some(), |ui| {
-                ui.vertical_centered_justified(|ui| {
-                    if ui.button("Disconnect").clicked() {
-                        self.disconnect_button_clicked();
-                    }
-                });
-            });
-
-            ui.label(&format!("{}, {}", self.status_text, self.timer_text));
-            ui.label(RichText::new(&self.word_box).code().size(32.0));
-
-            ui.heading("Messages: ");
-            ScrollArea::vertical()
-                .stick_to_bottom(true)
-                .auto_shrink([false, true])
-                .max_width(f32::INFINITY)
-                .max_height(ui.available_height() - 16.0)
-                .show(ui, |ui| {
-                    for message in &self.messages {
-                        ui.label(message);
-                    }
-                });
-        });
-
         TopBottomPanel::bottom("bottom_panel")
+            .frame(Frame {
+                inner_margin: Margin::same(12.0),
+                ..Frame::side_top_panel(&ctx.style())
+            })
             .show_separator_line(false)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
@@ -300,6 +266,53 @@ impl eframe::App for WordgamesClient {
                         }
                     });
                 });
+            });
+
+        CentralPanel::default()
+            .frame(Frame {
+                inner_margin: Margin {
+                    left: 12.0,
+                    right: 12.0,
+                    top: 12.0,
+                    bottom: 0.0,
+                },
+                ..Frame::central_panel(&ctx.style())
+            })
+            .show(ctx, |ui| {
+                ui.add_enabled_ui(self.websocket.is_none(), |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Server URL:");
+                        ui.centered_and_justified(|ui| {
+                            ui.text_edit_singleline(&mut self.server_url);
+                        });
+                    });
+                    ui.vertical_centered_justified(|ui| {
+                        if ui.button("Connect").clicked() {
+                            self.connect_button_clicked(ctx);
+                        }
+                    });
+                });
+                ui.add_enabled_ui(self.websocket.is_some(), |ui| {
+                    ui.vertical_centered_justified(|ui| {
+                        if ui.button("Disconnect").clicked() {
+                            self.disconnect_button_clicked();
+                        }
+                    });
+                });
+
+                ui.label(&format!("{}, {}", self.status_text, self.timer_text));
+                ui.label(RichText::new(&self.word_box).code().size(32.0));
+
+                ui.heading("Messages: ");
+                ScrollArea::vertical()
+                    .stick_to_bottom(true)
+                    .auto_shrink([false, true])
+                    .max_width(f32::INFINITY)
+                    .show(ui, |ui| {
+                        for message in &self.messages {
+                            ui.label(message);
+                        }
+                    });
             });
     }
 }
