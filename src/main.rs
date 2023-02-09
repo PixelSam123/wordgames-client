@@ -94,10 +94,15 @@ type ChannelWebsocket = (Sender<String>, Receiver<Result<String, String>>);
 fn connect(url: &str, ctx: Context) -> Result<ChannelWebsocket, String> {
     let (mut socket, _) = tungstenite::connect(url).map_err(|err| err.to_string())?;
 
-    if let MaybeTlsStream::Plain(stream) = socket.get_ref() {
-        stream
+    match socket.get_ref() {
+        MaybeTlsStream::Plain(stream) => stream
             .set_nonblocking(true)
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| err.to_string())?,
+        MaybeTlsStream::NativeTls(stream) => stream
+            .get_ref()
+            .set_nonblocking(true)
+            .map_err(|err| err.to_string())?,
+        _ => (),
     }
 
     let (to_main_thread_tx, to_main_thread_rx) = mpsc::channel();
