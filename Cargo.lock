@@ -2806,7 +2806,7 @@ dependencies = [
 
 [[package]]
 name = "wordgames-client"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "eframe",
  "serde",
