@@ -84,6 +84,13 @@ fn main() {
 
             creation_ctx.egui_ctx.set_style(app_style);
 
+            // TIMER HACK: Re-render UI every second
+            let app_ctx = creation_ctx.egui_ctx.clone();
+            thread::spawn(move || loop {
+                thread::sleep(Duration::from_secs(1));
+                app_ctx.request_repaint();
+            });
+
             Box::<WordgamesClient>::default()
         }),
     );
