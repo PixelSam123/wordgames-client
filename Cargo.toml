@@ -1,6 +1,6 @@
 [package]
 name = "wordgames-client"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,8 +9,8 @@ strip = true
 lto = true
 
 [dependencies]
-eframe = { version = "0.20", features = ["wgpu"] }
+eframe = { version = "0.21", features = ["wgpu"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 time = { version = "0.3", features = ["parsing"] }
-tungstenite = { version = "0.18", features = ["native-tls"] }
+tungstenite = { version = "0.19", features = ["native-tls"] }
