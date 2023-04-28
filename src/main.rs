@@ -265,7 +265,7 @@ impl eframe::App for WordgamesClient {
 
                     ui.centered_and_justified(|ui| {
                         let message_field = ui.text_edit_singleline(&mut self.message_to_send);
-                        if message_field.lost_focus() && ui.input().key_pressed(Key::Enter) {
+                        if message_field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
                             self.message_field_submitted(&message_field);
                         }
                     });
