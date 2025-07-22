@@ -83,15 +83,6 @@ fn main() -> eframe::Result {
 
             creation_ctx.egui_ctx.set_style(app_style);
 
-            // TIMER HACK: Re-render UI every second
-            let app_ctx = creation_ctx.egui_ctx.clone();
-            thread::spawn(move || {
-                loop {
-                    thread::sleep(Duration::from_secs(1));
-                    app_ctx.request_repaint();
-                }
-            });
-
             Ok(Box::<WordgamesClient>::default())
         }),
     )
@@ -118,6 +109,8 @@ fn connect(url: &str, ctx: Context) -> Result<ChannelWebsocket, String> {
     let (shutdown_tx, shutdown_rx) = mpsc::channel();
 
     thread::spawn(move || {
+        let mut repaint_counter = 0;
+
         loop {
             // Check for shutdown signal
             if shutdown_rx.try_recv().is_ok() {
@@ -137,7 +130,7 @@ fn connect(url: &str, ctx: Context) -> Result<ChannelWebsocket, String> {
             match socket.read() {
                 Ok(message) => {
                     let _ = recv_message_tx.send(Ok(message.to_string()));
-                    ctx.request_repaint();
+                    ctx.request_repaint(); // Immediate repaint for new messages
                 }
                 Err(tungstenite::Error::Io(ref err))
                     if err.kind() == std::io::ErrorKind::WouldBlock =>
@@ -151,7 +144,13 @@ fn connect(url: &str, ctx: Context) -> Result<ChannelWebsocket, String> {
                 }
             }
 
-            // approx. 30FPS loop
+            // 30 FPS message loop, but repaint UI every 3rd iteration (10 FPS)
+            repaint_counter += 1;
+            if repaint_counter >= 3 {
+                repaint_counter = 0;
+                ctx.request_repaint();
+            }
+
             thread::sleep(Duration::from_secs_f64(1.0 / 30.0));
         }
     });
@@ -163,15 +162,15 @@ fn connect(url: &str, ctx: Context) -> Result<ChannelWebsocket, String> {
 #[serde(tag = "type", content = "content")]
 enum ServerMessage {
     ChatMessage(String),
-    FinishedGame,
-    FinishedRoundInfo {
-        word_answer: String,
-        to_next_round_time: String,
-    },
     OngoingRoundInfo {
         word_to_guess: String,
         round_finish_time: String,
     },
+    FinishedRoundInfo {
+        word_answer: String,
+        to_next_round_time: String,
+    },
+    FinishedGame,
 }
 
 #[derive(Default)]
@@ -180,7 +179,7 @@ struct WordgamesClient<'a> {
     messages: Vec<String>,
     message_to_send: String,
     server_url: String,
-    status_text: &'a str,
+    word_box_guide: &'a str,
     timer_finish_time: Option<OffsetDateTime>,
     websocket: Option<ChannelWebsocket>,
     word_box: String,
@@ -197,7 +196,7 @@ impl WordgamesClient<'_> {
                 }
                 ServerMessage::FinishedGame => {
                     self.timer_finish_time = None;
-                    self.status_text = "Waiting Round Start!";
+                    self.word_box_guide = "Waiting Round Start!";
                     self.word_box = String::new();
                 }
                 ServerMessage::FinishedRoundInfo {
@@ -206,7 +205,7 @@ impl WordgamesClient<'_> {
                 } => {
                     self.timer_finish_time =
                         OffsetDateTime::parse(&to_next_round_time, &Iso8601::DEFAULT).ok();
-                    self.status_text = "Time's up! The answer is:";
+                    self.word_box_guide = "Time's up! The answer is:";
                     self.word_box = word_answer;
                 }
                 ServerMessage::OngoingRoundInfo {
@@ -215,7 +214,7 @@ impl WordgamesClient<'_> {
                 } => {
                     self.timer_finish_time =
                         OffsetDateTime::parse(&round_finish_time, &Iso8601::DEFAULT).ok();
-                    self.status_text = "Please guess:";
+                    self.word_box_guide = "Please guess:";
                     self.word_box = word_to_guess;
                 }
             },
@@ -239,6 +238,10 @@ impl WordgamesClient<'_> {
             let _ = shutdown_tx.send(());
         }
         self.websocket = None;
+
+        self.timer_finish_time = None;
+        self.word_box_guide = "";
+        self.word_box = String::new();
     }
 
     fn message_field_submitted(&mut self, message_field: &Response) {
@@ -334,10 +337,10 @@ impl eframe::App for WordgamesClient<'_> {
 
                 ui.label(format!(
                     "{} {}",
-                    self.status_text,
+                    self.word_box_guide,
                     self.timer_finish_time.map_or(String::new(), |time| format!(
-                        "{} seconds",
-                        (time - OffsetDateTime::now_utc()).as_seconds_f32().round()
+                        "{:.1} seconds",
+                        (time - OffsetDateTime::now_utc()).as_seconds_f32()
                     ))
                 ));
                 ui.label(RichText::new(&self.word_box).code().size(32.0));
