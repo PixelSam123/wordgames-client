@@ -9,6 +9,7 @@ use std::{
 };
 
 use eframe::{
+    AppCreator,
     egui::{
         Align2, CentralPanel, Context, Frame, Key, Margin, Response, RichText, ScrollArea,
         TopBottomPanel, ViewportBuilder, Window,
@@ -28,31 +29,32 @@ const APP_NAME: &str = "Wordgames Client";
 const ICON: &[u8] = include_bytes!("../assets/icon.png");
 
 fn main() -> eframe::Result {
-    eframe::run_native(
-        APP_NAME,
-        eframe::NativeOptions {
-            viewport: ViewportBuilder::default()
-                .with_inner_size(Vec2::new(500.0, 600.0))
-                .with_min_inner_size(Vec2::new(300.0, 300.0))
-                .with_icon(
-                    icon_data::from_png_bytes(ICON)
-                        .map_err(|e| eframe::Error::AppCreation(Box::new(e)))?,
-                ),
-            ..Default::default()
-        },
-        Box::new(|creation_ctx| {
-            creation_ctx.egui_ctx.set_style(create_app_style());
+    let options = eframe::NativeOptions {
+        viewport: ViewportBuilder::default()
+            .with_inner_size(Vec2::new(500.0, 600.0))
+            .with_min_inner_size(Vec2::new(300.0, 300.0))
+            .with_icon(
+                icon_data::from_png_bytes(ICON)
+                    .map_err(|e| eframe::Error::AppCreation(Box::new(e)))?,
+            ),
+        ..Default::default()
+    };
 
-            Ok(Box::new(WordgamesClient {
-                server_url: creation_ctx
-                    .storage
-                    .and_then(|storage| storage.get_string("server_url"))
-                    .unwrap_or_else(|| "ws://localhost:3000/ws/anagram/1".to_string()),
-                word_box_guide: "Waiting Round Start!",
-                ..WordgamesClient::default()
-            }))
-        }),
-    )
+    let app_creator: AppCreator = Box::new(|creation_ctx| {
+        creation_ctx.egui_ctx.set_style(create_app_style());
+
+        let storage = creation_ctx.storage;
+
+        Ok(Box::new(WordgamesClient {
+            server_url: storage
+                .and_then(|s| s.get_string("server_url"))
+                .unwrap_or_else(|| "ws://localhost:3000/ws/anagram/1".to_string()),
+            word_box_guide: "Waiting Round Start!",
+            ..Default::default()
+        }))
+    });
+
+    eframe::run_native(APP_NAME, options, app_creator)
 }
 
 type ChannelWebsocket = (Sender<String>, Receiver<Result<String, String>>, Sender<()>);
@@ -225,6 +227,13 @@ impl WordgamesClient<'_> {
     fn close_err_button_clicked(&mut self, idx: usize) {
         self.err_texts.remove(idx);
     }
+
+    fn server_url_changed(&self, frame: &mut eframe::Frame) {
+        // Save server URL to storage when it's modified
+        if let Some(storage) = frame.storage_mut() {
+            storage.set_string("server_url", self.server_url.clone());
+        }
+    }
 }
 
 impl eframe::App for WordgamesClient<'_> {
@@ -284,12 +293,9 @@ impl eframe::App for WordgamesClient<'_> {
                     ui.horizontal(|ui| {
                         ui.label("Server URL:");
                         ui.centered_and_justified(|ui| {
-                            let response = ui.text_edit_singleline(&mut self.server_url);
-                            if response.changed() {
-                                // Save server URL to storage when it's modified
-                                if let Some(storage) = frame.storage_mut() {
-                                    storage.set_string("server_url", self.server_url.clone());
-                                }
+                            let server_url_field = ui.text_edit_singleline(&mut self.server_url);
+                            if server_url_field.changed() {
+                                self.server_url_changed(frame);
                             }
                         });
                     });
