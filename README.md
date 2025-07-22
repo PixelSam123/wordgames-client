@@ -1,11 +1,10 @@
 # wordgames-client
 
-Native client for wordgames, a word games server for WebSockets
+![wordgames-client banner](https://raw.githubusercontent.com/PixelSam123/wordgames-client/refs/heads/main/docs/wordgames-client.webp)
+
+Native client for wordgames, a word games server for WebSockets.  
+Type `/help` for instructions.
 
 ## Current available server URLs
 
-Please note that both servers have slight differences in how to play.  
-One thing that's the same though, is that you should type `/help` for instructions.
-
-- English: `wss://play.norin.me/ws/anagram`
-- Indonesian: `wss://wordgames4j.azurewebsites.net/ws/anagram/1`
+Check out the default URL at https://pixelsam123.github.io/games/anagrams for the currently active server URL.

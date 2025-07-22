@@ -14,6 +14,7 @@ use eframe::{
         TopBottomPanel, ViewportBuilder, Window,
     },
     epaint::Vec2,
+    icon_data,
 };
 use serde::Deserialize;
 use time::{OffsetDateTime, format_description::well_known::Iso8601};
@@ -24,6 +25,7 @@ use crate::style::create_app_style;
 mod style;
 
 const APP_NAME: &str = "Wordgames Client";
+const ICON: &[u8] = include_bytes!("../assets/icon.png");
 
 fn main() -> eframe::Result {
     eframe::run_native(
@@ -31,7 +33,11 @@ fn main() -> eframe::Result {
         eframe::NativeOptions {
             viewport: ViewportBuilder::default()
                 .with_inner_size(Vec2::new(500.0, 600.0))
-                .with_min_inner_size(Vec2::new(300.0, 300.0)),
+                .with_min_inner_size(Vec2::new(300.0, 300.0))
+                .with_icon(
+                    icon_data::from_png_bytes(ICON)
+                        .map_err(|e| eframe::Error::AppCreation(Box::new(e)))?,
+                ),
             ..Default::default()
         },
         Box::new(|creation_ctx| {
