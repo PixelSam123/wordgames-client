@@ -9,24 +9,24 @@ use std::{
 
 use eframe::{
     egui::{
-        style::Margin, CentralPanel, Context, Frame, Key, Response, RichText, ScrollArea, Stroke,
-        Style, TextStyle, TopBottomPanel, Window,
+        CentralPanel, Context, CornerRadius, Frame, Key, Margin, Response, RichText, ScrollArea,
+        Stroke, Style, TextStyle, TopBottomPanel, ViewportBuilder, Window,
     },
-    epaint::{Color32, FontId, Rounding, Shadow, Vec2},
+    epaint::{Color32, FontId, Vec2},
 };
 use serde::Deserialize;
-use time::{format_description::well_known::Iso8601, OffsetDateTime};
+use time::{OffsetDateTime, format_description::well_known::Iso8601};
 use tungstenite::stream::MaybeTlsStream;
 
 const APP_NAME: &str = "Wordgames Client";
 
-fn main() {
+fn main() -> eframe::Result {
     eframe::run_native(
         APP_NAME,
         eframe::NativeOptions {
-            initial_window_size: Some(Vec2::new(500.0, 600.0)),
-            min_window_size: Some(Vec2::new(300.0, 300.0)),
-            renderer: eframe::Renderer::Wgpu,
+            viewport: ViewportBuilder::default()
+                .with_inner_size(Vec2::new(500.0, 600.0))
+                .with_min_inner_size(Vec2::new(300.0, 300.0)),
             ..Default::default()
         },
         Box::new(|creation_ctx| {
@@ -34,8 +34,8 @@ fn main() {
 
             app_style.spacing.item_spacing = Vec2::new(12.0, 6.0);
             app_style.spacing.button_padding = Vec2::new(6.0, 3.0);
-            app_style.spacing.window_margin = Margin::same(12.0);
-            app_style.spacing.menu_margin = Margin::same(12.0);
+            app_style.spacing.window_margin = Margin::same(12);
+            app_style.spacing.menu_margin = Margin::same(12);
 
             app_style
                 .text_styles
@@ -54,14 +54,13 @@ fn main() {
                 .insert(TextStyle::Heading, FontId::proportional(20.0));
 
             app_style.visuals.window_stroke = Stroke::new(1.5, Color32::from_gray(60));
-            app_style.visuals.window_rounding = Rounding::same(6.0);
-            app_style.visuals.window_shadow = Shadow::small_dark();
+            app_style.visuals.window_corner_radius = CornerRadius::same(6);
 
-            app_style.visuals.widgets.noninteractive.rounding = Rounding::same(3.0);
-            app_style.visuals.widgets.inactive.rounding = Rounding::same(3.0);
-            app_style.visuals.widgets.hovered.rounding = Rounding::same(3.0);
-            app_style.visuals.widgets.active.rounding = Rounding::same(3.0);
-            app_style.visuals.widgets.open.rounding = Rounding::same(3.0);
+            app_style.visuals.widgets.noninteractive.corner_radius = CornerRadius::same(3);
+            app_style.visuals.widgets.inactive.corner_radius = CornerRadius::same(3);
+            app_style.visuals.widgets.hovered.corner_radius = CornerRadius::same(3);
+            app_style.visuals.widgets.active.corner_radius = CornerRadius::same(3);
+            app_style.visuals.widgets.open.corner_radius = CornerRadius::same(3);
 
             app_style.visuals.widgets.noninteractive.bg_stroke =
                 Stroke::new(1.5, Color32::from_gray(60));
@@ -86,17 +85,19 @@ fn main() {
 
             // TIMER HACK: Re-render UI every second
             let app_ctx = creation_ctx.egui_ctx.clone();
-            thread::spawn(move || loop {
-                thread::sleep(Duration::from_secs(1));
-                app_ctx.request_repaint();
+            thread::spawn(move || {
+                loop {
+                    thread::sleep(Duration::from_secs(1));
+                    app_ctx.request_repaint();
+                }
             });
 
-            Box::<WordgamesClient>::default()
+            Ok(Box::<WordgamesClient>::default())
         }),
-    );
+    )
 }
 
-type ChannelWebsocket = (Sender<String>, Receiver<Result<String, String>>);
+type ChannelWebsocket = (Sender<String>, Receiver<Result<String, String>>, Sender<()>);
 
 fn connect(url: &str, ctx: Context) -> Result<ChannelWebsocket, String> {
     let (mut socket, _) = tungstenite::connect(url).map_err(|err| err.to_string())?;
@@ -112,27 +113,50 @@ fn connect(url: &str, ctx: Context) -> Result<ChannelWebsocket, String> {
         _ => (),
     }
 
-    let (to_main_thread_tx, to_main_thread_rx) = mpsc::channel();
-    let (from_main_thread_tx, from_main_thread_rx) = mpsc::channel();
+    let (recv_message_tx, recv_message_rx) = mpsc::channel();
+    let (send_message_tx, send_message_rx) = mpsc::channel();
+    let (shutdown_tx, shutdown_rx) = mpsc::channel();
 
-    thread::spawn(move || loop {
-        if let Ok(message) = from_main_thread_rx.try_recv() {
-            if let Err(err) = socket.write_message(tungstenite::Message::Text(message)) {
-                to_main_thread_tx.send(Err(err.to_string())).unwrap();
-                ctx.request_repaint();
+    thread::spawn(move || {
+        loop {
+            // Check for shutdown signal
+            if shutdown_rx.try_recv().is_ok() {
+                break;
             }
-        }
 
-        if let Ok(message) = socket.read_message() {
-            to_main_thread_tx.send(Ok(message.to_string())).unwrap();
-            ctx.request_repaint();
-        }
+            if let Ok(message) = send_message_rx.try_recv() {
+                if let Err(err) = socket.send(tungstenite::Message::Text(
+                    tungstenite::Utf8Bytes::from(message),
+                )) {
+                    let _ = recv_message_tx.send(Err(err.to_string()));
+                    ctx.request_repaint();
+                    break;
+                }
+            }
 
-        // approx. 60FPS loop
-        thread::sleep(Duration::from_secs_f64(1.0 / 60.0));
+            match socket.read() {
+                Ok(message) => {
+                    let _ = recv_message_tx.send(Ok(message.to_string()));
+                    ctx.request_repaint();
+                }
+                Err(tungstenite::Error::Io(ref err))
+                    if err.kind() == std::io::ErrorKind::WouldBlock =>
+                {
+                    // This is expected for non-blocking sockets, continue
+                }
+                Err(err) => {
+                    let _ = recv_message_tx.send(Err(err.to_string()));
+                    ctx.request_repaint();
+                    break;
+                }
+            }
+
+            // approx. 30FPS loop
+            thread::sleep(Duration::from_secs_f64(1.0 / 30.0));
+        }
     });
 
-    Ok((from_main_thread_tx, to_main_thread_rx))
+    Ok((send_message_tx, recv_message_rx, shutdown_tx))
 }
 
 #[derive(Deserialize)]
@@ -151,37 +175,38 @@ enum ServerMessage {
 }
 
 #[derive(Default)]
-struct WordgamesClient {
+struct WordgamesClient<'a> {
     err_texts: Vec<String>,
     messages: Vec<String>,
     message_to_send: String,
     server_url: String,
-    status_text: String,
+    status_text: &'a str,
     timer_finish_time: Option<OffsetDateTime>,
     websocket: Option<ChannelWebsocket>,
     word_box: String,
 }
 
-impl WordgamesClient {
+impl WordgamesClient<'_> {
     fn ws_result_received(&mut self, result: Result<String, String>) {
         match result {
-            Ok(message) => match serde_json::from_str::<ServerMessage>(&message).unwrap() {
+            Ok(message) => match serde_json::from_str::<ServerMessage>(&message)
+                .unwrap_or_else(|_| ServerMessage::ChatMessage("Error parsing message".to_string()))
+            {
                 ServerMessage::ChatMessage(message) => {
                     self.messages.push(message);
                 }
                 ServerMessage::FinishedGame => {
                     self.timer_finish_time = None;
-                    self.status_text = "Waiting Round Start!".to_owned();
+                    self.status_text = "Waiting Round Start!";
                     self.word_box = String::new();
                 }
                 ServerMessage::FinishedRoundInfo {
                     word_answer,
                     to_next_round_time,
                 } => {
-                    self.timer_finish_time = Some(
-                        OffsetDateTime::parse(&to_next_round_time, &Iso8601::DEFAULT).unwrap(),
-                    );
-                    self.status_text = "Time's up! The answer is:".to_owned();
+                    self.timer_finish_time =
+                        OffsetDateTime::parse(&to_next_round_time, &Iso8601::DEFAULT).ok();
+                    self.status_text = "Time's up! The answer is:";
                     self.word_box = word_answer;
                 }
                 ServerMessage::OngoingRoundInfo {
@@ -189,8 +214,8 @@ impl WordgamesClient {
                     round_finish_time,
                 } => {
                     self.timer_finish_time =
-                        Some(OffsetDateTime::parse(&round_finish_time, &Iso8601::DEFAULT).unwrap());
-                    self.status_text = "Please guess:".to_owned();
+                        OffsetDateTime::parse(&round_finish_time, &Iso8601::DEFAULT).ok();
+                    self.status_text = "Please guess:";
                     self.word_box = word_to_guess;
                 }
             },
@@ -210,11 +235,14 @@ impl WordgamesClient {
     }
 
     fn disconnect_button_clicked(&mut self) {
+        if let Some((_, _, shutdown_tx)) = &self.websocket {
+            let _ = shutdown_tx.send(());
+        }
         self.websocket = None;
     }
 
     fn message_field_submitted(&mut self, message_field: &Response) {
-        if let Some((sender, _)) = &self.websocket {
+        if let Some((sender, _, _)) = &self.websocket {
             if !self.message_to_send.is_empty() {
                 if let Err(err) = sender.send(self.message_to_send.clone()) {
                     self.err_texts.push(err.to_string());
@@ -231,10 +259,10 @@ impl WordgamesClient {
     }
 }
 
-impl eframe::App for WordgamesClient {
+impl eframe::App for WordgamesClient<'_> {
     fn update(&mut self, ctx: &Context, _: &mut eframe::Frame) {
         // fetch message and errors from reader thread
-        if let Some((_, receiver)) = &self.websocket {
+        if let Some((_, receiver, _)) = &self.websocket {
             if let Ok(result) = receiver.try_recv() {
                 self.ws_result_received(result);
             }
@@ -255,7 +283,7 @@ impl eframe::App for WordgamesClient {
 
         TopBottomPanel::bottom("bottom_panel")
             .frame(Frame {
-                inner_margin: Margin::same(12.0),
+                inner_margin: Margin::same(12),
                 ..Frame::side_top_panel(&ctx.style())
             })
             .show_separator_line(false)
@@ -275,10 +303,10 @@ impl eframe::App for WordgamesClient {
         CentralPanel::default()
             .frame(Frame {
                 inner_margin: Margin {
-                    left: 12.0,
-                    right: 12.0,
-                    top: 12.0,
-                    bottom: 0.0,
+                    left: 12,
+                    right: 12,
+                    top: 12,
+                    bottom: 0,
                 },
                 ..Frame::central_panel(&ctx.style())
             })
@@ -304,7 +332,7 @@ impl eframe::App for WordgamesClient {
                     });
                 });
 
-                ui.label(&format!(
+                ui.label(format!(
                     "{} {}",
                     self.status_text,
                     self.timer_finish_time.map_or(String::new(), |time| format!(
