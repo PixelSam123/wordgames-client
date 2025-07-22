@@ -111,9 +111,9 @@ fn connect(url: &str, ctx: Context) -> Result<ChannelWebsocket, String> {
                 }
             }
 
-            // 30 FPS message loop, but repaint UI every 3rd iteration (10 FPS)
+            // 30 FPS message loop, but repaint UI every 2nd iteration (15 FPS)
             repaint_counter += 1;
-            if repaint_counter >= 3 {
+            if repaint_counter >= 2 {
                 repaint_counter = 0;
                 ctx.request_repaint();
             }
