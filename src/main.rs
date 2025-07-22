@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{
+    io,
     sync::mpsc::{self, Receiver, Sender},
     thread,
     time::Duration,
@@ -9,14 +10,18 @@ use std::{
 
 use eframe::{
     egui::{
-        CentralPanel, Context, CornerRadius, Frame, Key, Margin, Response, RichText, ScrollArea,
-        Stroke, Style, TextStyle, TopBottomPanel, ViewportBuilder, Window,
+        Align2, CentralPanel, Context, Frame, Key, Margin, Response, RichText, ScrollArea,
+        TopBottomPanel, ViewportBuilder, Window,
     },
-    epaint::{Color32, FontId, Vec2},
+    epaint::Vec2,
 };
 use serde::Deserialize;
 use time::{OffsetDateTime, format_description::well_known::Iso8601};
 use tungstenite::stream::MaybeTlsStream;
+
+use crate::style::create_app_style;
+
+mod style;
 
 const APP_NAME: &str = "Wordgames Client";
 
@@ -30,60 +35,16 @@ fn main() -> eframe::Result {
             ..Default::default()
         },
         Box::new(|creation_ctx| {
-            let mut app_style = Style::default();
+            creation_ctx.egui_ctx.set_style(create_app_style());
 
-            app_style.spacing.item_spacing = Vec2::new(12.0, 6.0);
-            app_style.spacing.button_padding = Vec2::new(6.0, 3.0);
-            app_style.spacing.window_margin = Margin::same(12);
-            app_style.spacing.menu_margin = Margin::same(12);
-
-            app_style
-                .text_styles
-                .insert(TextStyle::Small, FontId::proportional(11.0));
-            app_style
-                .text_styles
-                .insert(TextStyle::Body, FontId::proportional(14.0));
-            app_style
-                .text_styles
-                .insert(TextStyle::Monospace, FontId::monospace(14.0));
-            app_style
-                .text_styles
-                .insert(TextStyle::Button, FontId::proportional(14.0));
-            app_style
-                .text_styles
-                .insert(TextStyle::Heading, FontId::proportional(20.0));
-
-            app_style.visuals.window_stroke = Stroke::new(1.5, Color32::from_gray(60));
-            app_style.visuals.window_corner_radius = CornerRadius::same(6);
-
-            app_style.visuals.widgets.noninteractive.corner_radius = CornerRadius::same(3);
-            app_style.visuals.widgets.inactive.corner_radius = CornerRadius::same(3);
-            app_style.visuals.widgets.hovered.corner_radius = CornerRadius::same(3);
-            app_style.visuals.widgets.active.corner_radius = CornerRadius::same(3);
-            app_style.visuals.widgets.open.corner_radius = CornerRadius::same(3);
-
-            app_style.visuals.widgets.noninteractive.bg_stroke =
-                Stroke::new(1.5, Color32::from_gray(60));
-            app_style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.5, Color32::from_gray(150));
-            app_style.visuals.widgets.active.bg_stroke = Stroke::new(1.5, Color32::from_gray(255));
-            app_style.visuals.widgets.open.bg_stroke = Stroke::new(1.5, Color32::from_gray(60));
-
-            app_style.visuals.widgets.hovered.expansion = 0.75;
-            app_style.visuals.widgets.active.expansion = 0.75;
-
-            app_style.visuals.widgets.noninteractive.fg_stroke =
-                Stroke::new(1.5, Color32::from_gray(190));
-            app_style.visuals.widgets.inactive.fg_stroke =
-                Stroke::new(1.5, Color32::from_gray(220));
-            app_style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.5, Color32::from_gray(250));
-            app_style.visuals.widgets.active.fg_stroke = Stroke::new(1.5, Color32::from_gray(255));
-            app_style.visuals.widgets.open.fg_stroke = Stroke::new(1.5, Color32::from_gray(220));
-
-            app_style.visuals.selection.stroke = Stroke::new(1.5, Color32::from_rgb(192, 222, 255));
-
-            creation_ctx.egui_ctx.set_style(app_style);
-
-            Ok(Box::<WordgamesClient>::default())
+            Ok(Box::new(WordgamesClient {
+                server_url: creation_ctx
+                    .storage
+                    .and_then(|storage| storage.get_string("server_url"))
+                    .unwrap_or_else(|| "ws://localhost:3000/ws/anagram/1".to_string()),
+                word_box_guide: "Waiting Round Start!",
+                ..WordgamesClient::default()
+            }))
         }),
     )
 }
@@ -132,9 +93,7 @@ fn connect(url: &str, ctx: Context) -> Result<ChannelWebsocket, String> {
                     let _ = recv_message_tx.send(Ok(message.to_string()));
                     ctx.request_repaint(); // Immediate repaint for new messages
                 }
-                Err(tungstenite::Error::Io(ref err))
-                    if err.kind() == std::io::ErrorKind::WouldBlock =>
-                {
+                Err(tungstenite::Error::Io(ref err)) if err.kind() == io::ErrorKind::WouldBlock => {
                     // This is expected for non-blocking sockets, continue
                 }
                 Err(err) => {
@@ -240,7 +199,7 @@ impl WordgamesClient<'_> {
         self.websocket = None;
 
         self.timer_finish_time = None;
-        self.word_box_guide = "";
+        self.word_box_guide = "Waiting Round Start!";
         self.word_box = String::new();
     }
 
@@ -263,7 +222,7 @@ impl WordgamesClient<'_> {
 }
 
 impl eframe::App for WordgamesClient<'_> {
-    fn update(&mut self, ctx: &Context, _: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         // fetch message and errors from reader thread
         if let Some((_, receiver, _)) = &self.websocket {
             if let Ok(result) = receiver.try_recv() {
@@ -276,6 +235,7 @@ impl eframe::App for WordgamesClient<'_> {
             Window::new(format!("Error {}", idx + 1))
                 .collapsible(false)
                 .resizable(false)
+                .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
                 .show(ctx, |ui| {
                     ui.label(err_text);
                     if ui.button("Close").clicked() {
@@ -318,7 +278,13 @@ impl eframe::App for WordgamesClient<'_> {
                     ui.horizontal(|ui| {
                         ui.label("Server URL:");
                         ui.centered_and_justified(|ui| {
-                            ui.text_edit_singleline(&mut self.server_url);
+                            let response = ui.text_edit_singleline(&mut self.server_url);
+                            if response.changed() {
+                                // Save server URL to storage when it's modified
+                                if let Some(storage) = frame.storage_mut() {
+                                    storage.set_string("server_url", self.server_url.clone());
+                                }
+                            }
                         });
                     });
                     ui.vertical_centered_justified(|ui| {
