@@ -57,6 +57,7 @@ fn main() -> eframe::Result {
     eframe::run_native(APP_NAME, options, app_creator)
 }
 
+/** (`send_message_tx`, `recv_message_rx`, `shutdown_tx`) */
 type ChannelWebsocket = (Sender<String>, Receiver<Result<String, String>>, Sender<()>);
 
 fn connect(url: &str, ctx: Context) -> Result<ChannelWebsocket, String> {
@@ -202,7 +203,10 @@ impl WordgamesClient<'_> {
 
     fn disconnect_button_clicked(&mut self) {
         if let Some((_, _, shutdown_tx)) = &self.websocket {
-            let _ = shutdown_tx.send(());
+            if let Err(err) = shutdown_tx.send(()) {
+                self.err_texts.push(err.to_string());
+                return;
+            }
         }
         self.websocket = None;
 
