@@ -184,7 +184,9 @@ impl eframe::App for WordgamesClient<'_> {
                 .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
                 .show(ctx, |ui| {
                     ui.label(err_text);
-                    if ui.button("Close").clicked() {
+
+                    let response = ui.button("Close");
+                    if response.clicked() {
                         self.close_err_button_clicked(idx);
                     }
                 });
@@ -201,9 +203,9 @@ impl eframe::App for WordgamesClient<'_> {
                     ui.label("Message:");
 
                     ui.centered_and_justified(|ui| {
-                        let message_field = ui.text_edit_singleline(&mut self.message_to_send);
-                        if message_field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
-                            self.message_field_submitted(&message_field);
+                        let response = ui.text_edit_singleline(&mut self.message_to_send);
+                        if response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                            self.message_field_submitted(&response);
                         }
                     });
                 });
@@ -224,21 +226,23 @@ impl eframe::App for WordgamesClient<'_> {
                     ui.horizontal(|ui| {
                         ui.label("Server URL:");
                         ui.centered_and_justified(|ui| {
-                            let server_url_field = ui.text_edit_singleline(&mut self.server_url);
-                            if server_url_field.changed() {
+                            let response = ui.text_edit_singleline(&mut self.server_url);
+                            if response.changed() {
                                 self.server_url_changed(frame);
                             }
                         });
                     });
                     ui.vertical_centered_justified(|ui| {
-                        if ui.button("Connect").clicked() {
+                        let response = ui.button("Connect");
+                        if response.clicked() {
                             self.connect_button_clicked(ctx);
                         }
                     });
                 });
                 ui.add_enabled_ui(self.websocket.is_some(), |ui| {
                     ui.vertical_centered_justified(|ui| {
-                        if ui.button("Disconnect").clicked() {
+                        let response = ui.button("Disconnect");
+                        if response.clicked() {
                             self.disconnect_button_clicked();
                         }
                     });
