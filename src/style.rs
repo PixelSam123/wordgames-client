@@ -28,13 +28,13 @@ pub fn create_app_style() -> Style {
         .insert(TextStyle::Heading, FontId::proportional(20.0));
 
     app_style.visuals.window_stroke = Stroke::new(1.5, Color32::from_gray(60));
-    app_style.visuals.window_corner_radius = CornerRadius::same(6);
+    app_style.visuals.window_corner_radius = CornerRadius::same(0);
 
-    app_style.visuals.widgets.noninteractive.corner_radius = CornerRadius::same(3);
-    app_style.visuals.widgets.inactive.corner_radius = CornerRadius::same(3);
-    app_style.visuals.widgets.hovered.corner_radius = CornerRadius::same(3);
-    app_style.visuals.widgets.active.corner_radius = CornerRadius::same(3);
-    app_style.visuals.widgets.open.corner_radius = CornerRadius::same(3);
+    app_style.visuals.widgets.noninteractive.corner_radius = CornerRadius::same(0);
+    app_style.visuals.widgets.inactive.corner_radius = CornerRadius::same(0);
+    app_style.visuals.widgets.hovered.corner_radius = CornerRadius::same(0);
+    app_style.visuals.widgets.active.corner_radius = CornerRadius::same(0);
+    app_style.visuals.widgets.open.corner_radius = CornerRadius::same(0);
 
     app_style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.5, Color32::from_gray(60));
     app_style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.5, Color32::from_gray(150));
