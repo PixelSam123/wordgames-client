@@ -41,6 +41,8 @@ jobs:
     steps:
     - uses: rui314/setup-mold@v1
     - uses: actions/checkout@v4
+    - name: Soft link mold linker
+      run: ln -s /usr/local/bin/mold /usr/bin/mold
     - name: Run tests
       run: cargo test --verbose
     - name: Build release
