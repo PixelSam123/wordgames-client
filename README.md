@@ -5,6 +5,10 @@
 Native client for wordgames, a word games server for WebSockets.  
 Type `/help` for instructions.
 
+## Downloads
+
+Check the [releases page.](https://github.com/PixelSam123/wordgames-client/releases)
+
 ## Current available server URLs
 
 Check out the default URL at https://pixelsam123.github.io/games/anagrams for the currently active server URL.
